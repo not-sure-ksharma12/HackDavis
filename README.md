@@ -59,6 +59,8 @@ graph TD
   Backend -->|sends to| AI[Gemini/GPT-4]
   AI -->|returns answers| Backend
   Backend -->|broadcasts| Frontend
+
+
 🔍 Key Modules
 📡 Real-Time Chat
 WebSocket communication via Socket.IO
