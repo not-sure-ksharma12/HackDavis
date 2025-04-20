@@ -1,0 +1,28 @@
+{% extends "base.html" %} {% block title %}ChatBook - Home{% endblock %} {%
+block content %}
+<div class="text-center">
+  <h1>Welcome to ChatBook</h1>
+  <p class="lead">A real-time chat application with book Q&A capabilities</p>
+
+  {% if user_info %}
+  <div class="mt-4">
+    <h3>Available Chat Rooms</h3>
+    <div class="list-group">
+      <a href="/user1" class="list-group-item list-group-item-action"
+        >User 1 Chat Room</a
+      >
+      <a href="/user2" class="list-group-item list-group-item-action"
+        >User 2 Chat Room</a
+      >
+      <a href="/user3" class="list-group-item list-group-item-action"
+        >User 3 Chat Room</a
+      >
+    </div>
+  </div>
+  {% else %}
+  <div class="mt-4">
+    <p>Please login to access the chat rooms.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

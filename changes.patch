@@ -1,0 +1,438 @@
+From ee122a5b1bc1f167581ca24ba368ab58effbd5a6 Mon Sep 17 00:00:00 2001
+From: Tirth Bhavesh Shah <shahtirth126@gmail.com>
+Date: Sat, 19 Apr 2025 09:49:23 -0700
+Subject: [PATCH 1/2] auth0 changes
+
+---
+ app/auth.py              | 40 +++++++++++++++++++++++++++
+ app/routes.py            | 41 ++++++++++++++++++++++++++--
+ app/templates/base.html  | 51 ++++++++++++++++++++++++++++++++++
+ app/templates/index.html | 59 ++++++++++++++++++----------------------
+ requirements.txt         |  2 ++
+ 5 files changed, 158 insertions(+), 35 deletions(-)
+ create mode 100644 app/auth.py
+ create mode 100644 app/templates/base.html
+
+diff --git a/app/auth.py b/app/auth.py
+new file mode 100644
+index 0000000..8523581
+--- /dev/null
++++ b/app/auth.py
+@@ -0,0 +1,40 @@
++from functools import wraps
++from flask import session, redirect, url_for, current_app
++from authlib.integrations.flask_client import OAuth
++import os
++from dotenv import load_dotenv
++
++load_dotenv()
++
++oauth = OAuth()
++
++# Auth0 configuration
++AUTH0_CLIENT_ID = os.getenv('AUTH0_CLIENT_ID')
++AUTH0_CLIENT_SECRET = os.getenv('AUTH0_CLIENT_SECRET')
++AUTH0_DOMAIN = os.getenv('AUTH0_DOMAIN')
++AUTH0_CALLBACK_URL = os.getenv('AUTH0_CALLBACK_URL', 'http://localhost:8000/callback')
++AUTH0_AUDIENCE = os.getenv('AUTH0_AUDIENCE', f'https://{AUTH0_DOMAIN}/api/v2/')
++
++auth0 = oauth.register(
++    'auth0',
++    client_id=AUTH0_CLIENT_ID,
++    client_secret=AUTH0_CLIENT_SECRET,
++    api_base_url=f'https://{AUTH0_DOMAIN}',
++    access_token_url=f'https://{AUTH0_DOMAIN}/oauth/token',
++    authorize_url=f'https://{AUTH0_DOMAIN}/authorize',
++    client_kwargs={
++        'scope': 'openid profile email',
++    },
++    server_metadata_url=f'https://{AUTH0_DOMAIN}/.well-known/openid-configuration'
++)
++
++def requires_auth(f):
++    @wraps(f)
++    def decorated(*args, **kwargs):
++        if 'profile' not in session:
++            return redirect('/login')
++        return f(*args, **kwargs)
++    return decorated
++
++def get_user_info():
++    return session.get('profile', {}) 
+\ No newline at end of file
+diff --git a/app/routes.py b/app/routes.py
+index 64e0db7..8656c0c 100644
+--- a/app/routes.py
++++ b/app/routes.py
+@@ -1,7 +1,8 @@
+-from flask import Blueprint, render_template, session, request, jsonify
++from flask import Blueprint, render_template, session, request, jsonify, redirect, url_for
+ from flask_socketio import emit, join_room, leave_room
+ from app import socketio, db
+ from app.models.message import Message
++from app.auth import auth0, requires_auth, get_user_info
+ from datetime import datetime
+ from bson import ObjectId
+ import os
+@@ -10,6 +11,7 @@ from pymongo import MongoClient
+ from flask import current_app
+ from app import rag_pipeline  # Import from app directly
+ import pytz
++from urllib.parse import urlencode, quote_plus
+ 
+ load_dotenv()
+ 
+@@ -22,11 +24,43 @@ books_client = MongoClient(MONGO_URI)
+ books_db = books_client["books"]
+ books_collection = books_db["books"]
+ 
++@main.route('/login')
++def login():
++    return auth0.authorize_redirect(redirect_uri=url_for('main.callback', _external=True))
++
++@main.route('/callback')
++def callback():
++    auth0.authorize_access_token()
++    resp = auth0.get('userinfo')
++    userinfo = resp.json()
++    
++    session['jwt_payload'] = userinfo
++    session['profile'] = {
++        'user_id': userinfo['sub'],
++        'name': userinfo['name'],
++        'picture': userinfo['picture']
++    }
++    return redirect('/')
++
++@main.route('/logout')
++def logout():
++    session.clear()
++    return redirect(
++        'https://' + os.getenv('AUTH0_DOMAIN')
++        + '/v2/logout?'
++        + urlencode({
++            'returnTo': url_for('main.index', _external=True),
++            'client_id': os.getenv('AUTH0_CLIENT_ID')
++        }, quote_via=quote_plus)
++    )
++
+ @main.route('/')
++@requires_auth
+ def index():
+-    return render_template('index.html')
++    return render_template('index.html', user_info=get_user_info())
+ 
+ @main.route('/<username>')
++@requires_auth
+ def chat(username):
+     session['username'] = username
+     messages = Message.get_all_messages()
+@@ -40,7 +74,8 @@ def chat(username):
+     return render_template('chat.html', 
+                          username=username, 
+                          messages=messages,
+-                         books=books)
++                         books=books,
++                         user_info=get_user_info())
+ 
+ @socketio.on('connect')
+ def handle_connect():
+diff --git a/app/templates/base.html b/app/templates/base.html
+new file mode 100644
+index 0000000..9a57028
+--- /dev/null
++++ b/app/templates/base.html
+@@ -0,0 +1,51 @@
++<!DOCTYPE html>
++<html lang="en">
++  <head>
++    <meta charset="UTF-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <title>{% block title %}ChatBook{% endblock %}</title>
++    <link
++      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
++      rel="stylesheet"
++    />
++    <style>
++      .auth-container {
++        position: absolute;
++        top: 20px;
++        right: 20px;
++        display: flex;
++        align-items: center;
++        gap: 10px;
++      }
++      .user-profile {
++        display: flex;
++        align-items: center;
++        gap: 10px;
++      }
++      .user-avatar {
++        width: 32px;
++        height: 32px;
++        border-radius: 50%;
++      }
++    </style>
++    {% block styles %}{% endblock %}
++  </head>
++  <body>
++    <div class="auth-container">
++      {% if user_info %}
++      <div class="user-profile">
++        <img src="{{ user_info.picture }}" alt="Profile" class="user-avatar" />
++        <span>{{ user_info.name }}</span>
++        <a href="/logout" class="btn btn-outline-danger btn-sm">Logout</a>
++      </div>
++      {% else %}
++      <a href="/login" class="btn btn-primary">Login</a>
++      {% endif %}
++    </div>
++
++    <div class="container mt-5">{% block content %}{% endblock %}</div>
++
++    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
++    {% block scripts %}{% endblock %}
++  </body>
++</html>
+diff --git a/app/templates/index.html b/app/templates/index.html
+index 1b776b2..59f3b2d 100644
+--- a/app/templates/index.html
++++ b/app/templates/index.html
+@@ -1,33 +1,28 @@
+-<!DOCTYPE html>
+-<html>
+-<head>
+-    <title>ChatBook - Welcome</title>
+-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+-</head>
+-<body>
+-    <div class="welcome-container">
+-        <h1>Welcome to ChatBook</h1>
+-        <div class="login-form">
+-            <input type="text" id="username" placeholder="Enter your username">
+-            <button onclick="joinChat()">Join Chat</button>
+-        </div>
++{% extends "base.html" %} {% block title %}ChatBook - Home{% endblock %} {%
++block content %}
++<div class="text-center">
++  <h1>Welcome to ChatBook</h1>
++  <p class="lead">A real-time chat application with book Q&A capabilities</p>
++
++  {% if user_info %}
++  <div class="mt-4">
++    <h3>Available Chat Rooms</h3>
++    <div class="list-group">
++      <a href="/user1" class="list-group-item list-group-item-action"
++        >User 1 Chat Room</a
++      >
++      <a href="/user2" class="list-group-item list-group-item-action"
++        >User 2 Chat Room</a
++      >
++      <a href="/user3" class="list-group-item list-group-item-action"
++        >User 3 Chat Room</a
++      >
+     </div>
+-    
+-    <script>
+-        function joinChat() {
+-            const username = document.getElementById('username').value.trim();
+-            if (username) {
+-                window.location.href = `/${username}`;
+-            } else {
+-                alert('Please enter a username');
+-            }
+-        }
+-        
+-        document.getElementById('username').addEventListener('keypress', function(e) {
+-            if (e.key === 'Enter') {
+-                joinChat();
+-            }
+-        });
+-    </script>
+-</body>
+-</html>
++  </div>
++  {% else %}
++  <div class="mt-4">
++    <p>Please login to access the chat rooms.</p>
++  </div>
++  {% endif %}
++</div>
++{% endblock %}
+diff --git a/requirements.txt b/requirements.txt
+index b057fad..cd206d9 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -22,3 +22,5 @@ Werkzeug==3.1.3
+ wsproto==1.2.0
+ zope.event==5.0
+ zope.interface==7.2
++authlib==1.2.1
++python-jose==3.3.0
+-- 
+2.39.5 (Apple Git-154)
+
+
+From 8fdc3c352028154a9ac54304bdc659a7b8c18a12 Mon Sep 17 00:00:00 2001
+From: not-sure-ksharma12 <ksharma12@csuchico.edu>
+Date: Sat, 19 Apr 2025 10:14:58 -0700
+Subject: [PATCH 2/2] Committing changes before merging kalpit_backchodi
+
+---
+ FETCH_HEAD                                   |   0
+ __pycache__/config.cpython-313.pyc           | Bin 766 -> 776 bytes
+ app/__pycache__/__init__.cpython-313.pyc     | Bin 1179 -> 1189 bytes
+ app/__pycache__/auth.cpython-313.pyc         | Bin 0 -> 1914 bytes
+ app/__pycache__/routes.cpython-313.pyc       | Bin 5782 -> 7634 bytes
+ app/rag/__pycache__/pipeline.cpython-313.pyc | Bin 9258 -> 9268 bytes
+ 6 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 FETCH_HEAD
+ create mode 100644 app/__pycache__/auth.cpython-313.pyc
+
+diff --git a/FETCH_HEAD b/FETCH_HEAD
+new file mode 100644
+index 0000000..e69de29
+diff --git a/__pycache__/config.cpython-313.pyc b/__pycache__/config.cpython-313.pyc
+index c0947ebde363939858345ea803252783f4227f01..1358d54ce412c8a5c384429c78696f81ce24c0fd 100644
+GIT binary patch
+delta 55
+zcmeyz+QG*CnU|M~0SF#kXWqyy%Ot0zA6lGRRIHz!m{X8hqMwnNoSl+bmRYRtoRL`K
+JG}(sf5CG6?5$6B^
+
+delta 45
+zcmeBR`^U=tnU|M~0SHz}Fl^+OWfD=)4=qkDD%Q_V%qhq$(NE4uEJ>Q|#&ie(4S)?u
+
+diff --git a/app/__pycache__/__init__.cpython-313.pyc b/app/__pycache__/__init__.cpython-313.pyc
+index 23020587fcddc297a4a00407fa5dd8e8c262c7f3..58b9cfc1e9aae09e0cef8f21f40c2f2648f71093 100644
+GIT binary patch
+delta 56
+zcmbQuxs;RpGcPX}0}wp8&b*QP2a}wEerR!OQL%n@VopJ3iGD_6a&}5$S!S`mb4Fr`
+K(`Iqz7DfQ|D-uWm
+
+delta 46
+zcmZ3=Ih&LFGcPX}0}%Y0#ITY32a|}JerR!OQL%n@VopJ3iGFfMVoB0wMdlVp072Uh
+Aa{vGU
+
+diff --git a/app/__pycache__/auth.cpython-313.pyc b/app/__pycache__/auth.cpython-313.pyc
+new file mode 100644
+index 0000000000000000000000000000000000000000..cad6125f38ff736a3e9559697bf7b9db82b726aa
+GIT binary patch
+literal 1914
+zcmZ`)O>7%Q6rT0^XPx!G<D^YW>Lg8z3-KC4D*B^HX%f*m!4+|gTGe9Nt~bu&t=G)1
+z6XHW<2@X&Wts<fL&_j;xjUz|yTo(C&8CsEw6E_QU;K-Zx#%T{3Y2Lnh^Ub_B?{9m-
+z;1Ggw^c%bViyNW8=;C+;9H#e>LFfmRM|oxqWf{yQDeqcyWm(K--PoP=U{BVIy|$cP
+z^JO{A*}QwrkNtr4tPN#(%qLNipF;D_wXot&Rya`fZ;TzQKKV|eymub-(}6>$VtfNk
+z_*4uxz(h{P`13>aE=ODRR1}{N6eA&&56-azbgUTIxYR%SI?acQp<=j?pL03q!gH*{
+zMSzRuV;RO-$6-BumBYjN#2CVf{0PvIvO6{UH@);ZLp-}!su?La@fnI?sCt!fSShJk
+zkxk;OV@=%BG2!Jp#!A%`rCKcoXKpXn&Fvg;yrxSfv80<yb%%r(3!Aqx;?nx+N^VnJ
+zT_*821o@Svjg?Ij=nI!`f4sPwBQXcExW0aKacNB~Y^*mXwoS8kO%OC)mb7i%Ft2@>
+z$z%jrX!j+#LPGsBi-l!Sw6xOTDBger4Nj11s<89EKs*vym}vwAoic){SCndFNT3TH
+zs||&C3|X%!jbR{FwUn%3eM{Apr1C&gwZ^27-c>Yhwo=u1t3n?#E9=!QwOq%N30_M1
+zh+o!J>Jzm@f(~maGFD6y04v1%lA(y;KoXH;8C)ycHrSHjz>NOVIbGS6aM>VnL%}-=
+z79S|4RFX`IVq_;{?Mz^S(%H)Z`3x%Q-e7kV9p_{LeZb_IG4us@Tpv}Yz+6BnS5CHX
+zafk=L=VA61fGjXjmdrh83!&?9vBV>EkE*jr-gT_t0@`#<p#sXF0<+9qp;xmx;&U9?
+z@Iv^?YBlA;R0H+`NwLIjztHQvl-V-q#mQuoyekyo*@jS&w3=!P+YslHw4)lr(zayY
+z)b$EPwq}PfUE3r6k|OI62&F`lSoyLJ>1v47sp%Vb(ijWr0U`++jEg}2Yoa55_~}P&
+ze)>gxymhM`pRocnzlS4FE?D8o*2Q1LlNLAG10=%KEHHh7@<|{Dt>Mp;n0kr?-%yFC
+zK}O}qBoI*Y!ZY;kdtcxA*Ts6KdMxsWx|Hj3D3Gw+!*~i%GR(n%HhB_G2<Bj8!)Y7?
+z0Wi?Mm<&2@5_UN8ILIA86Sl0F&ylUfF%|@39egXQRVZcJQRp<{K)_Z$_W1gv>reI$
+zr`r6C<({!mrbdZ>t6r5&UDpgu?IWHoO)@GcvBW-*VvcT2QpaoR{j^#&m2$s4jI@mx
+z`<adX6z9?n;_bHzOn(x@W7j6}f`!mNFytA+^dEtPl!Pb=1ECG6tQw|*afHgKzwLKm
+z8r9dH%H4RNm+G3bfN5dSnlN4g>9P#NyhP)FqN{Cm^(C771NmQ~iC2jKCisdAe(!5~
+zx?U7d9HjPB*16esEZq!uM$R0l`>K_kZ;xEDP`ne4KHht@*P3XD-);sviP3|*`**GL
+zbJl#Jo%qy3u}(C8aCZN!HU7@CuYL;r`0(dD)@-gFz1<8Qalyx-??N3n-wD0diOqB%
+z_tskrR`hab^!#C<_3&BIN?hv<pKBFcxo4NH*!&R}wxXB1tSjyX!^Wo%Zyctr%qP~F
+bjcx+@N4tpkyPBSV#=K0T7h#x-whR6T3>(b~
+
+literal 0
+HcmV?d00001
+
+diff --git a/app/__pycache__/routes.cpython-313.pyc b/app/__pycache__/routes.cpython-313.pyc
+index c34f78e75325988d63e9aaa856c2fd47e62c7c5c..eff5042beff7c98b7482012940556fcd8375c27f 100644
+GIT binary patch
+delta 3544
+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
+D+TROl
+
+delta 1875
+zcmZ`(OK%%h6u#pbzhZkFr;g)Sl8M`zOhXbPNZOJ#suCcrUD^`2T{M;~H=aD2WF|Q?
+zX=yeoLI_rss;eSc!G=Y}vSP<yK%`V`riucHO*bf^OF(eW^#gA@(tLAX_uTWGpC&&a
+zR$oRU9Som;Z%8YDMjxt4&%Ed1VBfCBO0485`U-yV7XlC{1R*G7a<QWjf>0q0VZkfK
+zNI?Zv(B5LS5QV6qeZ|f~3}S-z7rUSf{RN803UP=FS+Lk$NI*i+9Yt2?fgVAJ(0>v}
+zlZ}HZNR{I`Hcm0(qp`A-W2JC8J?^PXAX84wpW&L+9gU1j4OwrwYkrDki)ty_vg|J>
+za;)6nveL?0snd%`V4ytEpmOER{9N5jJC<V2Q>CtSD;hXK*8G8_dry`_^OxvG{-c!e
+zzSiV2J*{)ewsV6meX6BTx9Rn!K9_0fvu*lQ%YME01qG;k`4#yz|5Bdhf63SRs&esy
+zD~&F;$1Wp7@5>~@Beu{e5@RK)>HGxKJ(qVnR?V96;mC@!v93#?@CENwPKY3jCsX*^
+z5rq5f_fYzasb`_VJ!KHm{82|<+T-7M{GgP4XBGZcXlO)3vz_4LO4X@*lc5hKZeYW(
+z?dq~&LjqYn0HXL2{!i%Kw5|vnIF1^jc9mO}wPq{GYxqEhJSgN7P9fQguf2tEpZ$`~
+z@!jyP*pXij=MS0e%|n`u{k$CQ<?+bhQXh}0TQOH&HXI0|3IYTw=jvFPBD1L`cm>~6
+z<KAhchxrTjwv>KyE&749OBOIpFhVejuoKi)s<yUnEIIH73C9qyXm8OcQqOCG<g{Gi
+zLvUq#wbr<oWTy$v5S%4=n_!Y)ir^eVGbk#)8(XQGwRNLXTeTN0(=-+xm_hjjKOb{2
+z&hKI~?QzbcO83-@?nisaFda8!8h0y=4%CCDIzDdH{avKtO$0aGu&FrrHjQhKC7|Wg
+z!)-~?6u63Ay<@Z|bb~y+DkEKXm0H!Q)|*W6*))@_#;T3{n(<vi<$1EQ`5$V6|8}g3
+zS-um`%D#Fx_)<@wG|NBf85q*gY)75JVbM&>(Uz=jvjzhs3|}|bOzW<xky4l8Du3E@
+z{G@Oo(!GF2aE0JK0?|lX{%dfNr;@`rMF+*G<WcGdmT(&?mT5qg%#V>QT(#FKTib^1
+ztXd{eVW2>u61=*{{Oe?5Xb^4mAQZ_|1SLYbN~}&$BA6$b<-aDoHL(HlMxkgq{=fJp
+zT3vpUNIj6GA^uHT+jZ5YbqdY47S{}nt==dx`!tfST;1G+5cv)h+lB1NhE+4x?U7~+
+zL^6~IZlaCJQPQr*vRz-z!hyO2oh0yY-rKOuWeZ}+K^FlQW~4p|ZlF>zs~bk80&y}9
+zIIA1R4popw-Sy!<lA~_^Z6>=bYU~AT+cCrsN31zsXu>pkrEv!u3!r3yen(=>>pzCT
+z6h^<jZcM{%RM0xxuOlAHk|Z6lxu4nG0h@TrCJtD3pXK*i?><XCXTg2ex6k?ot7M<E
+z5I3?n$7Vn7Kk`VD{!(V1*dbAeKIZX#n*J#L+569=^pPhb<w==2B<iq_FZ9|9{c`>T
+DdV+^_
+
+diff --git a/app/rag/__pycache__/pipeline.cpython-313.pyc b/app/rag/__pycache__/pipeline.cpython-313.pyc
+index 9dbeb5ee6dad54b5153397903e48586a52d06af0..56cdb8dc2fb9ef33f4ec7388a204c946ecfab8ae 100644
+GIT binary patch
+delta 56
+zcmZ4GvBiV?GcPX}0}wp8&b*O(AE%s&erR!OQL%n@VopJ3iGD_6a&}5$S!S`mb4Fr`
+K)8@OJzES`Z2oqxf
+
+delta 46
+zcmdnuvC4z{GcPX}0}zB*F>K`C$0?$vA6lGRRIHz!m{X8hqMw|RSdz5)Ij64_06GB<
+AkN^Mx
+
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}ChatBook{% endblock %}</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary-color: #A070C8;
+        --secondary-color: #474a81;
+        --background-color: #3A2C87;
+        --text-color: #ffffff;
+        --border-color: #4a3d98;
+        --card-bg: #2a1f66;
+      }
+
+      body {
+        background-color: #3A2C87;
+        color: var(--text-color);
+        font-family: 'Inter', sans-serif;
+      }
+
+      .auth-container {
+        position: fixed;
+        top: 15px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 1001;
+      }
+
+      .user-profile {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+      }
+
+      .navbar {
+        background: #A070C8;
+        padding: 1rem 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        height: 64px;
+      }
+
+      .nav-content {
+        width: 100%;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        padding-left: 20px;
+      }
+
+      .nav-brand {
+        color: white;
+        font-size: 1.5rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-right: auto;
+      }
+
+      .nav-brand img {
+        height: 48px;
+        width: auto;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 1rem;
+      }
+
+      .nav-link {
+        color: white;
+        text-decoration: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+      }
+
+      .nav-link:hover {
+        background-color: rgba(255,255,255,0.1);
+      }
+
+      .logout-btn {
+        background-color: #dc3545;
+      }
+
+      .logout-btn:hover {
+        background-color: #c82333;
+      }
+
+      .login-btn {
+        background-color: #28a745;
+      }
+
+      .login-btn:hover {
+        background-color: #218838;
+      }
+
+      .has-navbar {
+        padding-top: 64px;
+      }
+
+      .chat-container {
+        background-color: var(--background-color);
+      }
+
+      .books-sidebar, .chat-header, .input-area {
+        background-color: var(--card-bg);
+      }
+
+      .chat-input input {
+        background-color: #ffffff;
+        color: #333333;
+      }
+    </style>
+    {% block styles %}{% endblock %}
+  </head>
+  <body class="has-navbar">
+    <nav class="navbar">
+      <div class="nav-content">
+        <a href="{{ url_for('main.index') }}" class="nav-brand">
+          <img src="{{ url_for('static', filename='images/chatbook-icon.png') }}" alt="ChatBook Logo">
+          ChatBook
+        </a>
+      </div>
+    </nav>
+
+    <div class="auth-container">
+      {% if user_info %}
+      <div class="user-profile">
+        <img src="{{ user_info.picture }}" alt="Profile" class="user-avatar" />
+        <span>{{ user_info.name }}</span>
+        <a href="{{ url_for('main.logout') }}" class="nav-link logout-btn">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+      </div>
+      {% else %}
+      <a href="{{ url_for('main.login') }}" class="nav-link login-btn">
+        <i class="fas fa-sign-in-alt"></i> Login
+      </a>
+      {% endif %}
+    </div>
+
+    <div class="container mt-5">{% block content %}{% endblock %}</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

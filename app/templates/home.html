@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to ChatBook{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-content">
+        <h1>Welcome to ChatBook</h1>
+        <p class="lead">Your AI-powered book companion for interactive learning and exploration.</p>
+        <div class="hero-buttons">
+            {% if user_info %}
+            <a href="{{ url_for('main.chat', username=user_info.name) }}" class="btn btn-primary btn-lg">
+                Start Chatting
+            </a>
+            {% else %}
+            <a href="{{ url_for('main.login') }}" class="btn btn-primary btn-lg">
+                Login to Get Started
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="features-section">
+    <h2>Features</h2>
+    <div class="features-grid">
+        <div class="feature-card">
+            <i class="fas fa-book"></i>
+            <h3>Book Exploration</h3>
+            <p>Ask questions about any book in our collection and get detailed answers.</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-comments"></i>
+            <h3>Interactive Chat</h3>
+            <p>Engage in natural conversations about books and topics.</p>
+        </div>
+        <div class="feature-card">
+            <i class="fas fa-brain"></i>
+            <h3>AI-Powered</h3>
+            <p>Get intelligent responses powered by advanced AI technology.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+.hero-section {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    border-radius: 10px;
+    margin-bottom: 3rem;
+}
+
+.hero-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hero-content h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.hero-content .lead {
+    font-size: 1.25rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+}
+
+.hero-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.hero-buttons .btn {
+    background-color: #3A2C87;
+    border-color: #3A2C87;
+    color: white;
+    transition: opacity 0.2s;
+}
+
+.hero-buttons .btn:hover {
+    background-color: #1c192a;
+    border-color: #3A2C87;
+    opacity: 0.9;
+}
+
+.features-section {
+    padding: 3rem 0;
+}
+
+.features-section h2 {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: var(--text-color);
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    padding: 0 1rem;
+}
+
+.feature-card {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 10px;
+    text-align: center;
+    transition: transform 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+}
+
+.feature-card i {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+.feature-card h3 {
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+.feature-card p {
+    color: var(--text-color);
+    opacity: 0.8;
+}
+</style>
+{% endblock %} 
