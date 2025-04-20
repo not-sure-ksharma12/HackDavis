@@ -1,8 +1,3 @@
-Sure! Here's a complete, polished README.md file for your ChatBook project — all in one markdown block, ready to copy and paste. You can replace placeholder links like screenshots and repo URLs with your actual content later.
-
-markdown
-Copy
-Edit
 # 📚 ChatBook – Real-Time AI-Powered Book Chat
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -52,44 +47,23 @@ Edit
 
 ```mermaid
 graph TD
-  User -->|uploads PDF/TXT| Frontend
-  Frontend -->|WebSocket| Socket.IO
-  Socket.IO --> Backend
-  Backend -->|stores| MongoDB
-  Backend -->|sends to| AI[Gemini/GPT-4]
-  AI -->|returns answers| Backend
-  Backend -->|broadcasts| Frontend
+  A[User] -->|uploads PDF/TXT| B[Frontend UI]
+  B -->|WebSocket| C[Socket.IO Client]
+  C --> D[Socket.IO Server]
+  D --> E[Flask Backend]
+  E --> F[MongoDB Atlas]
+  E --> G[Gemini / GPT-4 API]
+  G --> E
+  E --> D
+  D --> C
+  C --> B
 
----
-
-🔍 Key Modules
-📡 Real-Time Chat
-WebSocket communication via Socket.IO
-
-Live message broadcasting
-
-Persistent chat history (MongoDB)
-
-📚 Book Processing Pipeline
-File upload & metadata extraction
-
-PDF/TXT parsing and chunking
-
-Vector embeddings for semantic search
-
-🤖 AI Assistant
-Integrated Gemini / GPT-4 APIs
-
-Context-aware, book-specific replies
-
-RAG (Retrieval-Augmented Generation) workflow
-
-🛡️ Security
-Auth0 authentication (OAuth2)
-
-Secure file handling and session control
-
-Environment-based configuration
+  subgraph Modules
+    H1[📡 Real-Time Chat\n• WebSocket via Socket.IO\n• MongoDB chat history]
+    H2[📚 Book Pipeline\n• File parsing + chunking\n• Vector embeddings\n• Semantic search]
+    H3[🤖 AI Assistant\n• Gemini / GPT-4 API\n• Context-aware answers\n• RAG Q&A system]
+    H4[🛡️ Security\n• Auth0 OAuth2\n• Session & file safety\n• Input validation]
+  end
 
 📁 Project Structure
 bash
@@ -176,10 +150,8 @@ Auth0
 
 MongoDB Atlas
 
-Made with ❤️ by [Your Name]
-
-vbnet
+yaml
 Copy
 Edit
 
-Let me know if you'd like help inserting real screenshots, linking your actual repo, or generating GitHub Actions badges for build/tests!
+---
