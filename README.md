@@ -60,6 +60,7 @@ graph TD
   AI -->|returns answers| Backend
   Backend -->|broadcasts| Frontend
 
+---
 
 🔍 Key Modules
 📡 Real-Time Chat
